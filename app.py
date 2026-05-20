@@ -24,7 +24,7 @@ st.markdown("""
 st.title("🎛️ Tableau de Bord & Statistiques Avancées — MNQ")
 
 # -------------------------------------------------------------
-# ⚠️ REMPLIS TES PARAMÈTRES CLOUD ICI :
+# 💾 TES PARAMÈTRES DIRECTEMENT INTÉGRÉS :
 URL_SHEET = "https://docs.google.com/spreadsheets/d/1MNBfIn1HJFvpdEJbqm-QS8kn1AojNQACt5aIvsI2O_o/edit?usp=sharing"
 IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 # -------------------------------------------------------------
@@ -53,45 +53,4 @@ def load_data(url):
     try:
         return pd.read_csv(url)
     except:
-        return pd.DataFrame(columns=[
-            "date", "heure", "ordre", "résultat", "RR", "zone", 
-            "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "photo", "commentaire"
-        ])
-
-df_raw = load_data(csv_url)
-
-# Traitement et enrichissement des données
-if not df_raw.empty and "date" in df_raw.columns:
-    df = df_raw.copy()
-    df["date"] = pd.to_datetime(df["date"], errors='coerce')
-    df = df.sort_values(by="date", ascending=True)
-    
-    jours_traduc = {
-        'Monday': '1. Lundi', 'Tuesday': '2. Mardi', 'Wednesday': '3. Mercredi',
-        'Thursday': '4. Jeudi', 'Friday': '5. Vendredi', 'Saturday': '6. Samedi', 'Sunday': '7. Dimanche'
-    }
-    df["Jour Semaine"] = df["date"].dt.day_name().map(jours_traduc)
-    
-    def calcul_tranche_1h(heure_str):
-        try:
-            h = int(str(heure_str).split(':')[0])
-            return f"{h:02d}h - {h+1:02d}h"
-        except: return "Inconnu"
-    df["Tranche Horaire"] = df["heure"].apply(calcul_tranche_1h)
-else:
-    df = pd.DataFrame()
-
-# --- BARRE LATÉRALE : INSERTION RAPIDE ---
-st.sidebar.header("📥 Ajout de Positions")
-saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie Rapide (Session Live)", value=True)
-
-with st.sidebar.form(key="trade_form", clear_on_submit=True):
-    trade_date = st.date_input("Date du trade", datetime.now())
-    trade_time = st.time_input("Heure d'entrée", time(7, 0))
-    zone_choisie = st.selectbox("Zone d'intervention", ["VA", "zone rouge", "VA H/L", "exploration", "jonction VA - VA H/L", "jonction VA H/L - exploration", "jonction VA - zone rouge"])
-    uploaded_file = st.file_uploader("📷 Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
-
-    if not saisie_rapide:
-        order_type = st.radio("Ordre", ["achat", "vente"], horizontal=True)
-        result_type = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
-        div_type =
+        return pd.DataFrame(columns=
