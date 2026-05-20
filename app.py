@@ -94,42 +94,4 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
     if not saisie_rapide:
         order_type = st.radio("Ordre", ["achat", "vente"], horizontal=True)
         result_type = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
-        div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
-        nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
-        first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-        last_candle = st.selectbox("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"])
-        
-        if result_type == "SL": rr_value = -1.0
-        elif result_type == "TP": rr_value = 2.0
-        else: rr_value = st.number_input("RR (à indiquer)", min_value=-1.0, max_value=10.0, value=0.0, step=0.1)
-        comments = st.text_area("Commentaire")
-    else:
-        order_type, result_type, div_type, first_candle, last_candle = "À compléter", "À compléter", "À compléter", "À compléter", "À compléter"
-        nb_candles, rr_value, comments = 0, 0.0, "Saisie rapide effectuée."
-
-    st.form_submit_button(label="Enregistrer le Trade")
-
-# --- ESPACE DE TRAVAIL CENTRAL ---
-tab_dashboard, tab_correction = st.tabs(["📊 Statistiques & Graphiques", "✏️ Mode Édition (Données manquantes)"])
-
-# ----------------------------------------------------------------------------------
-# ONGLET 1 : GRAPHES PROS ET STATISTIQUES
-# ----------------------------------------------------------------------------------
-with tab_dashboard:
-    if not df.empty:
-        df_clean = df[df["résultat"] != "À compléter"].copy()
-        
-        st.markdown("### 🔑 Mesures de Performance Principales")
-        c1, c2, c3, c4 = st.columns(4)
-        
-        total_valid = len(df_clean)
-        if total_valid > 0:
-            tp_t = len(df_clean[df_clean["résultat"] == "TP"])
-            sl_t = len(df_clean[df_clean["résultat"] == "SL"])
-            wr = (tp_t / (tp_t + sl_t) * 100) if (tp_t + sl_t) > 0 else 0.0
-            df_clean["RR"] = pd.to_numeric(df_clean["RR"], errors='coerce').fillna(0)
-            r_total = df_clean["RR"].sum()
-            
-            c1.metric("Positions Analysées", f"{total_valid} trades")
-            c2.metric("Taux de Réussite (Win Rate)", f"{wr:.1f}%", f"{tp_t} TP / {sl_t} SL")
-            c3.metric("RR Cumulé Total", f"+{r_total:.1f} R" if r_total >= 0 else
+        div_type =
