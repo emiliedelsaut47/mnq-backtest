@@ -225,35 +225,35 @@ with tab_dashboard:
                 stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
                 return stats
 
-            # NOUVELLE FONCTION : Génération de Camemberts Rich-Text avancés
+            # FONCTION ENRICHIE : Affiche de manière forcée tout le texte à l'intérieur du camembert
             def generer_camembert_rich(dataframe, colonne_nom):
                 df_stats = analyser_critere(dataframe, colonne_nom)
                 if df_stats.empty:
                     return None
                 
-                # Création du libellé personnalisé demandé pour l'affichage intérieur
-                df_stats['label_texte'] = df_stats.apply(
-                    lambda r: f"<b>{r[colonne_nom]}</b><br>{r['Winrate']:.1f}% Winrate<br>({r['TP']} TP / {r['SL']} SL / {r['BE']} BE)", axis=1
+                # Formatage précis demandé : Paramètre + WR% + Volumes (TP/SL/BE)
+                df_stats['label_interne'] = df_stats.apply(
+                    lambda r: f"<b>{r[colonne_nom]}</b><br>{r['Winrate']:.1f}% WR<br>({r['TP']}TP / {r['SL']}SL / {r['BE']}BE)", axis=1
                 )
                 
                 fig = px.pie(
                     df_stats, 
                     names=colonne_nom, 
-                    values='Total',
-                    custom_data=['label_texte']
+                    values='Total'
                 )
                 
                 fig.update_traces(
-                    textinfo='percent+label',
-                    hovertemplate="%{customdata[0]}<extra></extra>",
+                    text=df_stats['label_interne'],
+                    textinfo='text',
                     textposition='inside',
+                    insidetextorientation='horizontal',
                     marker=dict(line=dict(color='#1E1E1E', width=2))
                 )
                 
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#ECEFF4'),
+                    font=dict(color='#ECEFF4', size=11),
                     showlegend=True,
                     margin=dict(l=10, r=10, t=10, b=10),
                     height=380
@@ -265,14 +265,14 @@ with tab_dashboard:
             with sub_tab1:
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    st.markdown("**Première bougie de l'arc (Répartition & Winrate)**")
+                    st.markdown("**Première bougie de l'arc**")
                     g1 = generer_camembert_rich(df_clean, "première bougie de l'arc")
                     if g1: st.plotly_chart(g1, use_container_width=True)
                     df_first = analyser_critere(df_clean, "première bougie de l'arc")
                     st.dataframe(df_first, use_container_width=True, hide_index=True)
                     
                 with col_b2:
-                    st.markdown("**Dernière bougie de l'arc (Répartition & Winrate)**")
+                    st.markdown("**Dernière bougie de l'arc**")
                     g2 = generer_camembert_rich(df_clean, "derniere bougie de l'arc")
                     if g2: st.plotly_chart(g2, use_container_width=True)
                     df_last = analyser_critere(df_clean, "derniere bougie de l'arc")
@@ -312,32 +312,4 @@ with tab_dashboard:
 
 with tab_correction:
     st.subheader("✏️ Analyse et enrichissement à tête reposée")
-    if not df.empty and "résultat" in df.columns: df_incomplets = df[df["résultat"] == "À compléter"]
-    else: df_incomplets = pd.DataFrame()
-    
-    if df_incomplets.empty:
-        st.success("🎉 Parfait ! Tous vos trades enregistrés sont complétés.")
-    else:
-        liste_options = [f"Position du {r['date']} à {r['heure']} — Zone : {r['zone']} (ID: {i})" for i, r in df_incomplets.iterrows()]
-        choix_trade = st.selectbox("Sélectionnez la position à analyser :", options=liste_options)
-        index_reel = int(choix_trade.split("(ID: ")[1].replace(")", ""))
-        trade_data = df.loc[index_reel]
-        
-        if trade_data["photo"] != "Pas de photo" and "http" in str(trade_data["photo"]):
-            st.image(trade_data["photo"], caption=f"Graphique MNQ — {trade_data['heure']}", use_container_width=True)
-            
-        with st.form(key="update_form"):
-            col_u1, col_u2, col_u3 = st.columns(3)
-            with col_u1:
-                u_dir = st.radio("Ordre", ["achat", "vente"], horizontal=True)
-                u_res = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
-            with col_u2:
-                u_sig = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
-                u_div = st.number_input("Nb bougie divergence", min_value=1, step=1, value=3)
-            with col_u3:
-                u_first = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-                u_last_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
-                
-            if u_res == "SL": u_rr = -1.0
-            elif u_res == "TP": u_rr = 2.0
-            else: u_rr = st.number_input("RR (à indiquer)", min_value=-1.0, value=0.0, step=0.1)
+    if not df.empty and "résultat" in df.columns: df_
