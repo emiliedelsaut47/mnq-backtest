@@ -30,7 +30,6 @@ IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 URL_SCRIPT_WEB = "https://script.google.com/macros/s/AKfycbwUlsQYnhkdPJRkSCx6_tcGX6N4oLV1Y_NA2KG96YdiyP-KtP4_89sdmR91Vv_cvLir/exec"
 # -------------------------------------------------------------
 
-# Transformation de l'URL pour la lecture CSV
 if "docs.google.com" in URL_SHEET:
     base_url = URL_SHEET.split("/edit")[0]
     csv_url = f"{base_url}/export?format=csv&gid=0"
@@ -54,12 +53,9 @@ def upload_image_to_imgbb(image_file, api_key):
 
 def sauvegarder_dans_google_sheet(payload_data, script_url):
     if script_url:
-        try:
-            requests.post(script_url, json=payload_data)
-        except:
-            pass
+        try: requests.post(script_url, json=payload_data)
+        except: pass
 
-# Initialisation sécurisée de l'état de session
 if "local_trades" not in st.session_state:
     st.session_state["local_trades"] = pd.DataFrame(columns=[
         "date", "heure", "ordre", "résultat", "RR", "zone", 
@@ -87,14 +83,10 @@ else:
 
 if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
     df = df_raw.copy()
-    
-    # Correction robuste du parsing de la date
     df["date_parsed"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors='coerce')
     df["date_parsed"] = df["date_parsed"].fillna(pd.to_datetime(df["date"], errors='coerce'))
-    
     df = df.sort_values(by="date_parsed", ascending=True)
     
-    # Extraction et traduction sécurisée du jour de la semaine
     jours_traduc = {
         'Monday': '1. Lundi', 'Tuesday': '2. Mardi', 'Wednesday': '3. Mercredi',
         'Thursday': '4. Jeudi', 'Friday': '5. Vendredi', 'Saturday': '6. Samedi', 'Sunday': '7. Dimanche'
@@ -113,7 +105,6 @@ else:
 
 # --- BARRE LATÉRALE : INSERTION DE POSITION ---
 st.sidebar.header("📥 Ajout de Positions")
-
 saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie Rapide (Session Live)", value=True)
 
 with st.sidebar.form(key="trade_form", clear_on_submit=True):
@@ -130,12 +121,9 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
         first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
         last_candle_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
         
-        if result_type == "SL": 
-            rr_value = -1.0
-        elif result_type == "TP": 
-            rr_value = 2.0
-        else: 
-            rr_value = st.number_input("RR (à indiquer)", min_value=-1.0, max_value=10.0, value=0.0, step=0.1)
+        if result_type == "SL": rr_value = -1.0
+        elif result_type == "TP": rr_value = 2.0
+        else: rr_value = st.number_input("RR (à indiquer)", min_value=-1.0, max_value=10.0, value=0.0, step=0.1)
         comments = st.text_area("Commentaire")
     else:
         order_type, result_type, div_type, first_candle, last_candle_list = "À compléter", "À compléter", "À compléter", "À compléter", ["À compléter"]
@@ -216,11 +204,8 @@ with tab_dashboard:
                 fillcolor='rgba(0, 230, 118, 0.1)'
             ))
             fig_curve.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                height=300,
-                margin=dict(l=20, r=20, t=20, b=20),
-                font=dict(color='#ECEFF4')
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300,
+                margin=dict(l=20, r=20, t=20, b=20), font=dict(color='#ECEFF4')
             )
             st.plotly_chart(fig_curve, use_container_width=True)
             
@@ -229,7 +214,7 @@ with tab_dashboard:
             
             def analyser_critere(dataframe, colonne):
                 if dataframe.empty or colonne not in dataframe.columns:
-                    return pd.DataFrame(columns=[colonne, 'Total', 'TP', 'SL', 'BE', 'R_Gain', 'Winrate'])
+                    return pd.DataFrame()
                 stats = dataframe.groupby(colonne).agg(
                     Total=('résultat', 'count'),
                     TP=('résultat', lambda x: (x == 'TP').sum()),
@@ -240,27 +225,38 @@ with tab_dashboard:
                 stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
                 return stats
 
-            def generer_graphique_repartition(dataframe, colonne_axe):
-                if dataframe.empty or colonne_axe not in dataframe.columns:
+            # NOUVELLE FONCTION : Génération de Camemberts Rich-Text avancés
+            def generer_camembert_rich(dataframe, colonne_nom):
+                df_stats = analyser_critere(dataframe, colonne_nom)
+                if df_stats.empty:
                     return None
-                df_counts = dataframe.groupby([colonne_axe, 'résultat']).size().reset_index(name='Nombre')
-                if df_counts.empty:
-                    return None
-                fig = px.bar(
-                    df_counts, 
-                    x=colonne_axe, 
-                    y='Nombre', 
-                    color='résultat',
-                    color_discrete_map={'TP': '#00E676', 'SL': '#FF5252', 'BE': '#FFD740'},
-                    barmode='group',
-                    text_auto=True
+                
+                # Création du libellé personnalisé demandé pour l'affichage intérieur
+                df_stats['label_texte'] = df_stats.apply(
+                    lambda r: f"<b>{r[colonne_nom]}</b><br>{r['Winrate']:.1f}% Winrate<br>({r['TP']} TP / {r['SL']} SL / {r['BE']} BE)", axis=1
                 )
+                
+                fig = px.pie(
+                    df_stats, 
+                    names=colonne_nom, 
+                    values='Total',
+                    custom_data=['label_texte']
+                )
+                
+                fig.update_traces(
+                    textinfo='percent+label',
+                    hovertemplate="%{customdata[0]}<extra></extra>",
+                    textposition='inside',
+                    marker=dict(line=dict(color='#1E1E1E', width=2))
+                )
+                
                 fig.update_layout(
-                    paper_bgcolor='rgba(0,0,0,0)', 
-                    plot_bgcolor='rgba(0,0,0,0)', 
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                     font=dict(color='#ECEFF4'),
-                    xaxis=dict(title=""),
-                    yaxis=dict(title="Nombre de positions")
+                    showlegend=True,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=380
                 )
                 return fig
 
@@ -269,18 +265,16 @@ with tab_dashboard:
             with sub_tab1:
                 col_b1, col_b2 = st.columns(2)
                 with col_b1:
-                    st.markdown("**Première bougie de l'arc (Répartition TP/SL/BE)**")
-                    g1 = generer_graphique_repartition(df_clean, "première bougie de l'arc")
+                    st.markdown("**Première bougie de l'arc (Répartition & Winrate)**")
+                    g1 = generer_camembert_rich(df_clean, "première bougie de l'arc")
                     if g1: st.plotly_chart(g1, use_container_width=True)
-                    else: st.info("Aucune donnée disponible")
                     df_first = analyser_critere(df_clean, "première bougie de l'arc")
                     st.dataframe(df_first, use_container_width=True, hide_index=True)
                     
                 with col_b2:
-                    st.markdown("**Dernière bougie de l'arc (Répartition TP/SL/BE)**")
-                    g2 = generer_graphique_repartition(df_clean, "derniere bougie de l'arc")
+                    st.markdown("**Dernière bougie de l'arc (Répartition & Winrate)**")
+                    g2 = generer_camembert_rich(df_clean, "derniere bougie de l'arc")
                     if g2: st.plotly_chart(g2, use_container_width=True)
-                    else: st.info("Aucune donnée disponible")
                     df_last = analyser_critere(df_clean, "derniere bougie de l'arc")
                     st.dataframe(df_last, use_container_width=True, hide_index=True)
                     
@@ -288,24 +282,21 @@ with tab_dashboard:
                 col_h1, col_h2 = st.columns(2)
                 with col_h1:
                     st.markdown("**Performance par Tranche Horaire (1h)**")
-                    g3 = generer_graphique_repartition(df_clean, "Tranche Horaire")
+                    g3 = generer_camembert_rich(df_clean, "Tranche Horaire")
                     if g3: st.plotly_chart(g3, use_container_width=True)
-                    else: st.info("Aucune donnée disponible")
                     df_hour = analyser_critere(df_clean, "Tranche Horaire").sort_values(by="Tranche Horaire")
                     st.dataframe(df_hour, use_container_width=True, hide_index=True)
                 with col_h2:
                     st.markdown("**Performance par Jour de la Semaine**")
-                    g4 = generer_graphique_repartition(df_clean, "Jour Semaine")
+                    g4 = generer_camembert_rich(df_clean, "Jour Semaine")
                     if g4: st.plotly_chart(g4, use_container_width=True)
-                    else: st.info("Aucune donnée disponible")
                     df_day = analyser_critere(df_clean, "Jour Semaine").sort_values(by="Jour Semaine")
                     st.dataframe(df_day, use_container_width=True, hide_index=True)
                     
             with sub_tab3:
                 st.markdown("**Performance par Zone d'Intervention**")
-                g5 = generer_graphique_repartition(df_clean, "zone")
+                g5 = generer_camembert_rich(df_clean, "zone")
                 if g5: st.plotly_chart(g5, use_container_width=True)
-                else: st.info("Aucune donnée disponible")
                 df_zone = analyser_critere(df_clean, "zone")
                 st.dataframe(df_zone.sort_values(by="Winrate", ascending=False), use_container_width=True, hide_index=True)
         else:
@@ -321,18 +312,14 @@ with tab_dashboard:
 
 with tab_correction:
     st.subheader("✏️ Analyse et enrichissement à tête reposée")
-    
-    if not df.empty and "résultat" in df.columns:
-        df_incomplets = df[df["résultat"] == "À compléter"]
-    else:
-        df_incomplets = pd.DataFrame()
+    if not df.empty and "résultat" in df.columns: df_incomplets = df[df["résultat"] == "À compléter"]
+    else: df_incomplets = pd.DataFrame()
     
     if df_incomplets.empty:
         st.success("🎉 Parfait ! Tous vos trades enregistrés sont complétés.")
     else:
         liste_options = [f"Position du {r['date']} à {r['heure']} — Zone : {r['zone']} (ID: {i})" for i, r in df_incomplets.iterrows()]
         choix_trade = st.selectbox("Sélectionnez la position à analyser :", options=liste_options)
-        
         index_reel = int(choix_trade.split("(ID: ")[1].replace(")", ""))
         trade_data = df.loc[index_reel]
         
@@ -351,32 +338,6 @@ with tab_correction:
                 u_first = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
                 u_last_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
                 
-            if u_res == "SL": 
-                u_rr = -1.0
-            elif u_res == "TP": 
-                u_rr = 2.0
-            else: 
-                u_rr = st.number_input("RR (à indiquer)", min_value=-1.0, value=0.0, step=0.1)
-                
-            u_comments = st.text_area("Commentaire", value="")
-            save_button = st.form_submit_button("Valider et injecter les datas")
-            
-        if save_button:
-            u_last_str = " + ".join(u_last_list) if u_last_list else "Aucune"
-            
-            payload = {
-                "date": str(trade_data["date"]), "heure": str(trade_data["heure"]), "ordre": u_dir, "résultat": u_res, "RR": float(u_rr),
-                "zone": str(trade_data["zone"]), "type_divergence": u_sig, "nb_bougie_divergence": int(u_div),
-                "premiere_bougie": u_first, "derniere_bougie": u_last_str, "photo": str(trade_data["photo"]), "commentaire": u_comments
-            }
-            with st.spinner("Synchronisation en cours..."):
-                sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
-            
-            nb_sheet_rows = len(df_sheet)
-            if index_reel >= nb_sheet_rows:
-                local_idx = index_reel - nb_sheet_rows
-                if not st.session_state["local_trades"].empty and local_idx < len(st.session_state["local_trades"]):
-                    st.session_state["local_trades"] = st.session_state["local_trades"].drop(st.session_state["local_trades"].index[local_idx]).reset_index(drop=True)
-            
-            st.success("🔥 Position enregistrée définitivement !")
-            st.rerun()
+            if u_res == "SL": u_rr = -1.0
+            elif u_res == "TP": u_rr = 2.0
+            else: u_rr = st.number_input("RR (à indiquer)", min_value=-1.0, value=0.0, step=0.1)
