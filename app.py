@@ -101,22 +101,4 @@ if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
             return "Inconnu"
     df["Tranche Horaire"] = df["heure"].apply(calcul_tranche_1h)
 else:
-    df = pd.DataFrame()
-
-# --- BARRE LATÉRALE : INSERTION DE POSITION ---
-st.sidebar.header("📥 Ajout de Positions")
-saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie Rapide (Session Live)", value=True)
-
-with st.sidebar.form(key="trade_form", clear_on_submit=True):
-    trade_date = st.date_input("Date du trade", datetime.now(), format="DD/MM/YYYY")
-    trade_time = st.time_input("Heure d'entrée exacte (HH:MM)", time(7, 0), step=60)
-    zone_choisie = st.selectbox("Zone d'intervention", ["VA", "zone rouge", "VA H/L", "exploration", "jonction VA - VA H/L", "jonction VA H/L - exploration", "jonction VA - zone rouge"])
-    uploaded_file = st.file_uploader("📷 Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
-
-    if not saisie_rapide:
-        order_type = st.radio("Ordre", ["achat", "vente"], horizontal=True)
-        result_type = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
-        div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
-        nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
-        first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-        last_candle_list
+    df =
