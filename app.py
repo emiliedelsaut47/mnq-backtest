@@ -21,10 +21,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Tableau de Bord et Statistiques Avancees - MNQ")
+st.title("Tableau de Bord et Statistiques Avancées - MNQ")
 
 # -------------------------------------------------------------
-# PARAMETRES INTEGRES
+# PARAMÈTRES INTÉGRÉS
 URL_SHEET = "https://docs.google.com/spreadsheets/d/1MNBfIn1HJFvpdEJbqm-QS8kn1AojNQACt5aIvsI2O_o/edit?usp=sharing"
 IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 URL_SCRIPT_WEB = "https://script.google.com/macros/s/AKfycbwUlsQYnhkdPJRkSCx6_tcGX6N4oLV1Y_NA2KG96YdiyP-KtP4_89sdmR91Vv_cvLir/exec"
@@ -58,7 +58,7 @@ def sauvegarder_dans_google_sheet(payload_data, script_url):
         except: 
             pass
 
-# Structure standardisee des colonnes
+# Structure standardisée des colonnes
 COLONNES_STANDARDS = [
     "date", "heure", "ordre", "résultat", "RR", "zone", 
     "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "photo", "commentaire"
@@ -80,7 +80,7 @@ def load_data(url):
 
 df_sheet = load_data(csv_url)
 
-# Fusion securisee des donnees
+# Fusion sécurisée des données
 if not st.session_state["local_trades"].empty:
     if df_sheet.empty:
         df_raw = st.session_state["local_trades"].copy()
@@ -112,7 +112,7 @@ if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
 else:
     df = pd.DataFrame(columns=COLONNES_STANDARDS + ["Jour Semaine", "Tranche Horaire"])
 
-# --- BARRE LATERALE ---
+# --- BARRE LATÉRALE ---
 st.sidebar.header("Ajout de Positions")
 saisie_rapide = st.sidebar.checkbox("Mode Saisie Rapide (Live)", value=True)
 
@@ -136,8 +136,8 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
         result_type = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
         div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
         nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
-        first_candle = st.selectbox("""Première bougie de l'arc""", ["pin bar", "mèche", "corps"])
-        last_candle_list = st.multiselect("""Dernière bougie de l'arc""", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
+        first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
+        last_candle_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
         
         if result_type == "SL": 
             rr_value = -1.0
@@ -168,8 +168,8 @@ if submit_button:
         "zone": zone_choisie, 
         "type divergence": div_type, 
         "nb bougie divergence": int(nb_candles),
-        """première bougie de l'arc""": first_candle, 
-        """derniere bougie de l'arc""": last_candle_str, 
+        "première bougie de l'arc": first_candle, 
+        "derniere bougie de l'arc": last_candle_str, 
         "photo": url_photo, 
         "commentaire": comments
     }])
@@ -178,6 +178,25 @@ if submit_button:
     
     if not saisie_rapide:
         payload = {
-            "date": date_fr, "heure": heure_fr, "ordre": order_type, "résultat": result_type, "RR": float(rr_value),
-            "zone": zone_choisie, "type_divergence": div_type, "nb_bougie_divergence": int(nb_candles),
-            "premiere_bougie": first_candle, "derniere_bougie": last_candle_str, "photo": url_photo,
+            "date": date_fr, 
+            "heure": heure_fr, 
+            "ordre": order_type, 
+            "résultat": result_type, 
+            "RR": float(rr_value),
+            "zone": zone_choisie, 
+            "type_divergence": div_type, 
+            "nb_bougie_divergence": int(nb_candles),
+            "premiere_bougie": first_candle, 
+            "derniere_bougie": last_candle_str, 
+            "photo": url_photo, 
+            "commentaire": comments
+        }
+        sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
+        
+    st.sidebar.success(f"Trade enregistré localement ! ({date_fr} à {heure_fr})")
+    st.rerun()
+
+# --- ESPACE CENTRAL ---
+tab_dashboard, tab_correction = st.tabs(["Statistiques et Graphiques", "Mode Édition (Données manquantes)"])
+
+with tab_dashboard
