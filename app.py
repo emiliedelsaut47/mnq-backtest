@@ -114,11 +114,11 @@ else:
 
 # --- BARRE LATÉRALE ---
 st.sidebar.header("Ajout de Positions")
-saisie_rapide = st.sidebar.checkbox("Mode Saisie Rapide (Live)", value=True)
+saisie_rapide = st.sidebar.checkbox("Mode Saisie Rapide (Session Live)", value=True)
 
 with st.sidebar.form(key="trade_form", clear_on_submit=True):
     trade_date = st.date_input("Date du trade", datetime.now(), format="DD/MM/YYYY")
-    trade_time = st.time_input("Heure d'entrée exacte (HH:MM)", time(7, 0), step=60)
+    trade_time = st.time_input("Heure d'entrée exacte", time(7, 0), step=60)
     zone_choisie = st.selectbox("Zone d'intervention", ["VA", "zone rouge", "VA H/L", "exploration", "jonction VA - VA H/L", "jonction VA H/L - exploration", "jonction VA - zone rouge"])
     uploaded_file = st.file_uploader("Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
 
@@ -170,33 +170,4 @@ if submit_button:
         "nb bougie divergence": int(nb_candles),
         "première bougie de l'arc": first_candle, 
         "derniere bougie de l'arc": last_candle_str, 
-        "photo": url_photo, 
-        "commentaire": comments
-    }])
-    
-    st.session_state["local_trades"] = pd.concat([st.session_state["local_trades"], new_trade], ignore_index=True)
-    
-    if not saisie_rapide:
-        payload = {
-            "date": date_fr, 
-            "heure": heure_fr, 
-            "ordre": order_type, 
-            "résultat": result_type, 
-            "RR": float(rr_value),
-            "zone": zone_choisie, 
-            "type_divergence": div_type, 
-            "nb_bougie_divergence": int(nb_candles),
-            "premiere_bougie": first_candle, 
-            "derniere_bougie": last_candle_str, 
-            "photo": url_photo, 
-            "commentaire": comments
-        }
-        sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
-        
-    st.sidebar.success(f"Trade enregistré localement ! ({date_fr} à {heure_fr})")
-    st.rerun()
-
-# --- ESPACE CENTRAL ---
-tab_dashboard, tab_correction = st.tabs(["Statistiques et Graphiques", "Mode Édition (Données manquantes)"])
-
-with tab_dashboard
+        "photo": url_photo
