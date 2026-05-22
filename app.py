@@ -86,25 +86,4 @@ else:
 if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
     df = df_raw.copy()
     df["date_parsed"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors='coerce')
-    df["date_parsed"] = df["date_parsed"].fillna(pd.to_datetime(df["date"], errors='coerce'))
-    df = df.sort_values(by="date_parsed", ascending=True)
-    
-    jours_traduc = {
-        'Monday': '1. Lundi', 'Tuesday': '2. Mardi', 'Wednesday': '3. Mercredi',
-        'Thursday': '4. Jeudi', 'Friday': '5. Vendredi', 'Saturday': '6. Samedi', 'Sunday': '7. Dimanche'
-    }
-    df["Jour Semaine"] = df["date_parsed"].dt.day_name().map(jours_traduc).fillna("Inconnu")
-    
-    def calcul_tranche_1h(heure_str):
-        try:
-            h = int(str(heure_str).split(':')[0])
-            return f"{h:02d}h - {h+1:02d}h"
-        except: 
-            return "Inconnu"
-    df["Tranche Horaire"] = df["heure"].apply(calcul_tranche_1h)
-else:
-    df = pd.DataFrame()
-
-# --- BARRE LATÉRALE : INSERTION DE POSITION ---
-st.sidebar.header("📥 Ajout de Positions")
-saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie
+    df["date_parsed"] = df["date_parsed"].fillna
