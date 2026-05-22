@@ -170,4 +170,81 @@ if submit_button:
         "nb bougie divergence": int(nb_candles),
         "première bougie de l'arc": first_candle, 
         "derniere bougie de l'arc": last_candle_str, 
-        "photo": url_photo
+        "photo": url_photo, 
+        "commentaire": comments
+    }])
+    
+    st.session_state["local_trades"] = pd.concat([st.session_state["local_trades"], new_trade], ignore_index=True)
+    
+    if not saisie_rapide:
+        payload = {
+            "date": date_fr, 
+            "heure": heure_fr, 
+            "ordre": order_type, 
+            "résultat": result_type, 
+            "RR": float(rr_value),
+            "zone": zone_choisie, 
+            "type_divergence": div_type, 
+            "nb_bougie_divergence": int(nb_candles),
+            "premiere_bougie": first_candle, 
+            "derniere_bougie": last_candle_str, 
+            "photo": url_photo, 
+            "commentaire": comments
+        }
+        sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
+        
+    st.sidebar.success(f"Trade enregistré localement ! ({date_fr} à {heure_fr})")
+    st.rerun()
+
+# --- ESPACE CENTRAL ---
+tab_dashboard, tab_correction = st.tabs(["Statistiques & Graphiques", "Mode Édition (Données manquantes)"])
+
+with tab_dashboard:
+    if not df.empty and "résultat" in df.columns and len(df[df["résultat"] != "À compléter"]) > 0:
+        df_clean = df[df["résultat"] != "À compléter"].copy()
+        
+        st.markdown("### 🔑 Mesures de Performance Principales")
+        c1, c2, c3, c4 = st.columns(4)
+        
+        total_valid = len(df_clean)
+        tp_t = len(df_clean[df_clean["résultat"] == "TP"])
+        sl_t = len(df_clean[df_clean["résultat"] == "SL"])
+        wr = (tp_t / (tp_t + sl_t) * 100) if (tp_t + sl_t) > 0 else 0.0
+        
+        df_clean["RR"] = pd.to_numeric(df_clean["RR"], errors='coerce').fillna(0)
+        r_total = df_clean["RR"].sum()
+            
+        c1.metric("Positions Analysées", f"{total_valid} trades")
+        c2.metric("Taux de Réussite (Win Rate)", f"{wr:.1f}%", f"↑ {tp_t} TP / {sl_t} SL")
+        
+        signe = "+" if r_total >= 0 else ""
+        c3.metric("RR Cumulé Total", f"{signe}{r_total:.1f} R")
+        c4.metric("En attente de complétion", f"{len(df) - total_valid} trades")
+        
+        st.markdown("---")
+        st.markdown("### 📈 Progression Globale des Résultats (RR)")
+        
+        df_clean["RR_Cumsum"] = df_clean["RR"].cumsum()
+        
+        fig_curve = go.Figure()
+        fig_curve.add_trace(go.Scatter(
+            x=df_clean["date_parsed"].dt.strftime('%d/%m/%Y') if "date_parsed" in df_clean.columns else df_clean["date"], 
+            y=df_clean["RR_Cumsum"],
+            mode='lines+markers',
+            line=dict(color='#00E676', width=3),
+            fill='tozeroy',
+            fillcolor='rgba(0, 230, 118, 0.1)'
+        ))
+        fig_curve.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300,
+            margin=dict(l=20, r=20, t=20, b=20), font=dict(color='#ECEFF4')
+        )
+        st.plotly_chart(fig_curve, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("### 🎯 Analyses Précises par Paramètres")
+        
+        def analyser_critere(dataframe, colonne):
+            if dataframe.empty or colonne not in dataframe.columns:
+                return pd.DataFrame()
+            stats = dataframe.groupby(col
