@@ -225,13 +225,12 @@ with tab_dashboard:
                 stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
                 return stats
 
-            # FONCTION ENRICHIE : Affiche de manière forcée tout le texte à l'intérieur du camembert
             def generer_camembert_rich(dataframe, colonne_nom):
                 df_stats = analyser_critere(dataframe, colonne_nom)
                 if df_stats.empty:
                     return None
                 
-                # Formatage précis demandé : Paramètre + WR% + Volumes (TP/SL/BE)
+                # Construction explicite de la chaîne textuelle interne requise
                 df_stats['label_interne'] = df_stats.apply(
                     lambda r: f"<b>{r[colonne_nom]}</b><br>{r['Winrate']:.1f}% WR<br>({r['TP']}TP / {r['SL']}SL / {r['BE']}BE)", axis=1
                 )
@@ -253,7 +252,7 @@ with tab_dashboard:
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(color='#ECEFF4', size=11),
+                    font=dict(color='#ECEFF4', size=12),
                     showlegend=True,
                     margin=dict(l=10, r=10, t=10, b=10),
                     height=380
@@ -312,4 +311,22 @@ with tab_dashboard:
 
 with tab_correction:
     st.subheader("✏️ Analyse et enrichissement à tête reposée")
-    if not df.empty and "résultat" in df.columns: df_
+    
+    # Correction de l'assignation de df_incomplets pour éviter les NameError
+    if not df.empty and "résultat" in df.columns: 
+        df_incomplets = df[df["résultat"] == "À compléter"]
+    else: 
+        df_incomplets = pd.DataFrame()
+    
+    if df_incomplets.empty:
+        st.success("🎉 Parfait ! Tous vos trades enregistrés sont complétés.")
+    else:
+        liste_options = [f"Position du {r['date']} à {r['heure']} — Zone : {r['zone']} (ID: {i})" for i, r in df_incomplets.iterrows()]
+        choix_trade = st.selectbox("Sélectionnez la position à analyser :", options=liste_options)
+        index_reel = int(choix_trade.split("(ID: ")[1].replace(")", ""))
+        trade_data = df.loc[index_reel]
+        
+        if trade_data["photo"] != "Pas de photo" and "http" in str(trade_data["photo"]):
+            st.image(trade_data["photo"], caption=f"Graphique MNQ — {trade_data['heure']}", use_container_width=True)
+            
+        # Formulaire principal avec son st.form_submit_button
