@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 import base64
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, time
 
 # --- CONFIGURATION GRAPHIQUE DE LA PAGE ---
@@ -122,7 +124,9 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
         div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
         nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
         first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-        last_candle = st.selectbox("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"])
+        
+        # MODIFICATION ICI : Remplacement par un multiselect pour la dernière bougie
+        last_candle_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
         
         if result_type == "SL": 
             rr_value = -1.0
@@ -132,7 +136,7 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
             rr_value = st.number_input("RR (à indiquer)", min_value=-1.0, max_value=10.0, value=0.0, step=0.1)
         comments = st.text_area("Commentaire")
     else:
-        order_type, result_type, div_type, first_candle, last_candle = "À compléter", "À compléter", "À compléter", "À compléter", "À compléter"
+        order_type, result_type, div_type, first_candle, last_candle_list = "À compléter", "À compléter", "À compléter", "À compléter", ["À compléter"]
         nb_candles, rr_value, comments = 0, 0.0, "Saisie rapide effectuée."
 
     submit_button = st.form_submit_button(label="Enregistrer le Trade")
@@ -145,11 +149,14 @@ if submit_button:
             
     date_fr = trade_date.strftime("%d/%m/%Y")
     heure_fr = trade_time.strftime("%H:%M")
+    
+    # Transformation de la liste en chaîne de caractères (ex: "pin bar + englobante") pour l'enregistrement
+    last_candle_str = " + ".join(last_candle_list) if last_candle_list else "Aucune"
             
     new_trade = pd.DataFrame([{
         "date": date_fr, "heure": heure_fr, "ordre": order_type, "résultat": result_type,
         "RR": float(rr_value), "zone": zone_choisie, "type divergence": div_type, "nb bougie divergence": int(nb_candles),
-        "première bougie de l'arc": first_candle, "derniere bougie de l'arc": last_candle, "photo": url_photo, "commentaire": comments
+        "première bougie de l'arc": first_candle, "derniere bougie de l'arc": last_candle_str, "photo": url_photo, "commentaire": comments
     }])
     
     st.session_state["local_trades"] = pd.concat([st.session_state["local_trades"], new_trade], ignore_index=True)
@@ -158,7 +165,7 @@ if submit_button:
         payload = {
             "date": date_fr, "heure": heure_fr, "ordre": order_type, "résultat": result_type, "RR": float(rr_value),
             "zone": zone_choisie, "type_divergence": div_type, "nb_bougie_divergence": int(nb_candles),
-            "premiere_bougie": first_candle, "derniere_bougie": last_candle, "photo": url_photo, "commentaire": comments
+            "premiere_bougie": first_candle, "derniere_bougie": last_candle_str, "photo": url_photo, "commentaire": comments
         }
         sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
         
@@ -189,7 +196,6 @@ with tab_dashboard:
         c1.metric("Positions Analysées", f"{total_valid} trades")
         c2.metric("Taux de Réussite (Win Rate)", f"{wr:.1f}%", f"{tp_t} TP / {sl_t} SL")
         
-        # Correction de la syntaxe de la string f-string ici :
         signe = "+" if r_total >= 0 else ""
         c3.metric("RR Cumulé Total", f"{signe}{r_total:.1f} R")
         c4.metric("En attente de complétion", f"{len(df) - total_valid} trades")
@@ -198,10 +204,26 @@ with tab_dashboard:
             st.markdown("---")
             st.markdown("### 📈 Progression Globale des Résultats (RR)")
             
-            # Utilisation de st.line_chart pour éviter la dépendance obligatoire à Plotly si absent
             df_clean["RR_Cumsum"] = df_clean["RR"].cumsum()
-            df_chart = df_clean.set_index(df_clean["date_parsed"].dt.strftime('%d/%m/%Y'))["RR_Cumsum"]
-            st.line_chart(df_chart, color="#00E676")
+            
+            # REMISE EN PLACE DU GRAPHIQUE DE COURBE AVANCÉ
+            fig_curve = go.Figure()
+            fig_curve.add_trace(go.Scatter(
+                x=df_clean["date_parsed"].dt.strftime('%d/%m/%Y'), 
+                y=df_clean["RR_Cumsum"],
+                mode='lines+markers',
+                line=dict(color='#00E676', width=3),
+                fill='tozeroy',
+                fillcolor='rgba(0, 230, 118, 0.1)'
+            ))
+            fig_curve.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                height=300,
+                margin=dict(l=20, r=20, t=20, b=20),
+                font=dict(color='#ECEFF4')
+            )
+            st.plotly_chart(fig_curve, use_container_width=True)
             
             st.markdown("---")
             st.markdown("### 🎯 Analyses Précises par Paramètres")
@@ -223,10 +245,19 @@ with tab_dashboard:
                 with col_b1:
                     st.markdown("**Première bougie de l'arc**")
                     df_first = analyser_critere(df_clean, "première bougie de l'arc")
+                    # REMISE EN PLACE DU GRAPHIQUE EN BARRES
+                    fig1 = px.bar(df_first, x="première bougie de l'arc", y='Winrate', color='R_Gain', color_continuous_scale='Greens', text_auto='.1f')
+                    fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#ECEFF4'))
+                    st.plotly_chart(fig1, use_container_width=True)
                     st.dataframe(df_first, use_container_width=True, hide_index=True)
+                    
                 with col_b2:
                     st.markdown("**Dernière bougie de l'arc**")
                     df_last = analyser_critere(df_clean, "derniere bougie de l'arc")
+                    # REMISE EN PLACE DU GRAPHIQUE EN BARRES
+                    fig2 = px.bar(df_last, x="derniere bougie de l'arc", y='Winrate', color='R_Gain', color_continuous_scale='Greens', text_auto='.1f')
+                    fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#ECEFF4'))
+                    st.plotly_chart(fig2, use_container_width=True)
                     st.dataframe(df_last, use_container_width=True, hide_index=True)
                     
             with sub_tab2:
@@ -234,83 +265,9 @@ with tab_dashboard:
                 with col_h1:
                     st.markdown("**Performance par Tranche Horaire (1h)**")
                     df_hour = analyser_critere(df_clean, "Tranche Horaire").sort_values(by="Tranche Horaire")
-                    st.dataframe(df_hour, use_container_width=True, hide_index=True)
+                    fig3 = px.bar(df_hour, x='Tranche Horaire', y='Winrate', color='R_Gain', color_continuous_scale='Greens')
+                    fig3.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#ECEFF4'))
+                    st.plotly_chart(fig3, use_container_width=True)
                 with col_h2:
                     st.markdown("**Performance par Jour de la Semaine**")
-                    df_day = analyser_critere(df_clean, "Jour Semaine").sort_values(by="Jour Semaine")
-                    st.dataframe(df_day, use_container_width=True, hide_index=True)
-                    
-            with sub_tab3:
-                df_zone = analyser_critere(df_clean, "zone")
-                st.dataframe(df_zone.sort_values(by="Winrate", ascending=False), use_container_width=True, hide_index=True)
-        else:
-            st.info("💡 Vos données sont connectées ! Remplissez les caractéristiques manquantes de votre position ci-dessus dans l'onglet 'Mode Édition' pour voir vos graphiques.")
-            
-        st.markdown("### 📋 Historique Général Brut")
-        df_display = df.copy()
-        if "date_parsed" in df_display.columns:
-            df_display = df_display.drop(columns=["date_parsed"])
-        st.dataframe(df_display.sort_values(by="date", ascending=False), use_container_width=True)
-    else:
-        st.info("ℹ️ Base de données actuellement vide ou en attente de synchronisation. Ajoutez un trade dans la barre latérale.")
-
-with tab_correction:
-    st.subheader("✏️ Analyse et enrichissement à tête reposée")
-    
-    # Vérification et initialisation sécurisée de df_incomplets
-    if not df.empty and "résultat" in df.columns:
-        df_incomplets = df[df["résultat"] == "À compléter"]
-    else:
-        df_incomplets = pd.DataFrame()
-    
-    if df_incomplets.empty:
-        st.success("🎉 Parfait ! Tous vos trades enregistrés sont complétés.")
-    else:
-        liste_options = [f"Position du {r['date']} à {r['heure']} — Zone : {r['zone']} (ID: {i})" for i, r in df_incomplets.iterrows()]
-        choix_trade = st.selectbox("Sélectionnez la position à analyser :", options=liste_options)
-        
-        index_reel = int(choix_trade.split("(ID: ")[1].replace(")", ""))
-        trade_data = df.loc[index_reel]
-        
-        if trade_data["photo"] != "Pas de photo" and "http" in str(trade_data["photo"]):
-            st.image(trade_data["photo"], caption=f"Graphique MNQ — {trade_data['heure']}", use_container_width=True)
-            
-        with st.form(key="update_form"):
-            col_u1, col_u2, col_u3 = st.columns(3)
-            with col_u1:
-                u_dir = st.radio("Ordre", ["achat", "vente"], horizontal=True)
-                u_res = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
-            with col_u2:
-                u_sig = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
-                u_div = st.number_input("Nb bougie divergence", min_value=1, step=1, value=3)
-            with col_u3:
-                u_first = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-                u_last = st.selectbox("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"])
-                
-            if u_res == "SL": 
-                u_rr = -1.0
-            elif u_res == "TP": 
-                u_rr = 2.0
-            else: 
-                u_rr = st.number_input("RR (à indiquer)", min_value=-1.0, value=0.0, step=0.1)
-                
-            u_comments = st.text_area("Commentaire", value="")
-            save_button = st.form_submit_button("Valider et injecter les datas")
-            
-        if save_button:
-            payload = {
-                "date": str(trade_data["date"]), "heure": str(trade_data["heure"]), "ordre": u_dir, "résultat": u_res, "RR": float(u_rr),
-                "zone": str(trade_data["zone"]), "type_divergence": u_sig, "nb_bougie_divergence": int(u_div),
-                "premiere_bougie": u_first, "derniere_bougie": u_last, "photo": str(trade_data["photo"]), "commentaire": u_comments
-            }
-            with st.spinner("Synchronisation en cours..."):
-                sauvegarder_dans_google_sheet(payload, URL_SCRIPT_WEB)
-            
-            nb_sheet_rows = len(df_sheet)
-            if index_reel >= nb_sheet_rows:
-                local_idx = index_reel - nb_sheet_rows
-                if not st.session_state["local_trades"].empty and local_idx < len(st.session_state["local_trades"]):
-                    st.session_state["local_trades"] = st.session_state["local_trades"].drop(st.session_state["local_trades"].index[local_idx]).reset_index(drop=True)
-            
-            st.success("🔥 Position enregistrée définitivement !")
-            st.rerun()
+                    df
