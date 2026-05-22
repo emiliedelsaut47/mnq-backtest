@@ -21,10 +21,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🎛️ Tableau de Bord & Statistiques Avancées — MNQ")
+st.title("Tableau de Bord et Statistiques Avancees - MNQ")
 
 # -------------------------------------------------------------
-# 💾 PARAMÈTRES INTÉGRÉS :
+# PARAMETRES INTEGRES
 URL_SHEET = "https://docs.google.com/spreadsheets/d/1MNBfIn1HJFvpdEJbqm-QS8kn1AojNQACt5aIvsI2O_o/edit?usp=sharing"
 IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 URL_SCRIPT_WEB = "https://script.google.com/macros/s/AKfycbwUlsQYnhkdPJRkSCx6_tcGX6N4oLV1Y_NA2KG96YdiyP-KtP4_89sdmR91Vv_cvLir/exec"
@@ -58,7 +58,7 @@ def sauvegarder_dans_google_sheet(payload_data, script_url):
         except: 
             pass
 
-# Structure standardisée des colonnes
+# Structure standardisee des colonnes
 COLONNES_STANDARDS = [
     "date", "heure", "ordre", "résultat", "RR", "zone", 
     "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "photo", "commentaire"
@@ -72,7 +72,6 @@ def load_data(url):
     try:
         df_online = pd.read_csv(url)
         df_online = df_online.dropna(how='all')
-        # Homogénéisation des noms de colonnes pour éviter les décalages d'accents
         if not df_online.empty:
             df_online.columns = [c.replace("premiere", "première") for c in df_online.columns]
         return df_online
@@ -81,7 +80,7 @@ def load_data(url):
 
 df_sheet = load_data(csv_url)
 
-# Fusion sécurisée des données distantes et locales
+# Fusion securisee des donnees
 if not st.session_state["local_trades"].empty:
     if df_sheet.empty:
         df_raw = st.session_state["local_trades"].copy()
@@ -90,7 +89,7 @@ if not st.session_state["local_trades"].empty:
 else:
     df_raw = df_sheet.copy() if not df_sheet.empty else pd.DataFrame(columns=COLONNES_STANDARDS)
 
-# Traitement analytique sécurisé des dates et heures
+# Traitement des colonnes temporelles
 if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
     df = df_raw.copy()
     df["date_parsed"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors='coerce')
@@ -113,17 +112,16 @@ if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
 else:
     df = pd.DataFrame(columns=COLONNES_STANDARDS + ["Jour Semaine", "Tranche Horaire"])
 
-# --- BARRE LATÉRALE : INSERTION DE POSITION ---
-st.sidebar.header("📥 Ajout de Positions")
-saisie_rapide = st.sidebar.checkbox("Mode Saisie Rapide", value=True)
+# --- BARRE LATERALE ---
+st.sidebar.header("Ajout de Positions")
+saisie_rapide = st.sidebar.checkbox("Mode Saisie Rapide (Live)", value=True)
 
 with st.sidebar.form(key="trade_form", clear_on_submit=True):
     trade_date = st.date_input("Date du trade", datetime.now(), format="DD/MM/YYYY")
     trade_time = st.time_input("Heure d'entrée exacte (HH:MM)", time(7, 0), step=60)
     zone_choisie = st.selectbox("Zone d'intervention", ["VA", "zone rouge", "VA H/L", "exploration", "jonction VA - VA H/L", "jonction VA H/L - exploration", "jonction VA - zone rouge"])
-    uploaded_file = st.file_uploader("📷 Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
 
-    # Initialisation globale par défaut
     order_type = "À compléter"
     result_type = "À compléter"
     div_type = "À compléter"
@@ -138,8 +136,8 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
         result_type = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
         div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
         nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
-        first_candle = st.selectbox("Première bougie de l'arc", ["pin bar", "mèche", "corps"])
-        last_candle_list = st.multiselect("Dernière bougie de l'arc", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
+        first_candle = st.selectbox("""Première bougie de l'arc""", ["pin bar", "mèche", "corps"])
+        last_candle_list = st.multiselect("""Dernière bougie de l'arc""", ["pin bar", "mèche", "corps", "englobante"], default=["pin bar"])
         
         if result_type == "SL": 
             rr_value = -1.0
@@ -162,6 +160,24 @@ if submit_button:
     last_candle_str = " + ".join(last_candle_list) if last_candle_list else "Aucune"
             
     new_trade = pd.DataFrame([{
-        "date": date_fr, "heure": heure_fr, "ordre": order_type, "résultat": result_type,
-        "RR": float(rr_value), "zone": zone_choisie, "type divergence": div_type, "nb bougie divergence": int(nb_candles),
-        "première bougie de l'arc": first_candle, "derniere bou
+        "date": date_fr, 
+        "heure": heure_fr, 
+        "ordre": order_type, 
+        "résultat": result_type,
+        "RR": float(rr_value), 
+        "zone": zone_choisie, 
+        "type divergence": div_type, 
+        "nb bougie divergence": int(nb_candles),
+        """première bougie de l'arc""": first_candle, 
+        """derniere bougie de l'arc""": last_candle_str, 
+        "photo": url_photo, 
+        "commentaire": comments
+    }])
+    
+    st.session_state["local_trades"] = pd.concat([st.session_state["local_trades"], new_trade], ignore_index=True)
+    
+    if not saisie_rapide:
+        payload = {
+            "date": date_fr, "heure": heure_fr, "ordre": order_type, "résultat": result_type, "RR": float(rr_value),
+            "zone": zone_choisie, "type_divergence": div_type, "nb_bougie_divergence": int(nb_candles),
+            "premiere_bougie": first_candle, "derniere_bougie": last_candle_str, "photo": url_photo,
