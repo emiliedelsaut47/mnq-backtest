@@ -29,9 +29,13 @@ URL_SHEET = "https://docs.google.com/spreadsheets/d/1MNBfIn1HJFvpdEJbqm-QS8kn1Ao
 IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 # -------------------------------------------------------------
 
+# Transformation de l'URL pour la lecture et l'écriture CSV via l'API Web de Google
 if "docs.google.com" in URL_SHEET:
     base_url = URL_SHEET.split("/edit")[0]
     csv_url = f"{base_url}/export?format=csv&gid=0"
+    # URL de l'API de script Google pour sauvegarder (Web App)
+    # Si tu as un script Google Apps associé à ta feuille, indique son URL ici, sinon l'application utilise une simulation de base de données locale
+    script_url = ""
 else:
     st.error("Veuillez entrer une URL Google Sheets valide.")
     st.stop()
@@ -50,24 +54,40 @@ def upload_image_to_imgbb(image_file, api_key):
     except: 
         return "Erreur connexion"
 
-@st.cache_data(ttl=2)
+# Utilisation des états de session Streamlit pour garder en mémoire les nouveaux trades ajoutés en direct
+if "local_trades" not in st.session_state:
+    st.session_state["local_trades"] = pd.DataFrame(columns=[
+        "date", "heure", "ordre", "résultat", "RR", "zone", 
+        "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "photo", "commentaire"
+    ])
+
+@st.cache_data(ttl=1)
 def load_data(url):
     try:
-        return pd.read_csv(url)
+        df_online = pd.read_csv(url)
+        # Supprime les lignes totalement vides du Google Sheet
+        df_online = df_online.dropna(how='all')
+        return df_online
     except:
         return pd.DataFrame(columns=[
             "date", "heure", "ordre", "résultat", "RR", "zone", 
             "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "photo", "commentaire"
         ])
 
-df_raw = load_data(csv_url)
+df_sheet = load_data(csv_url)
 
-# Traitement et enrichissement des données
+# Fusionner les données du Google Sheet et les données saisies localement durant la session
+if not st.session_state["local_trades"].empty:
+    df_raw = pd.concat([df_sheet, st.session_state["local_trades"]], ignore_index=True)
+else:
+    df_raw = df_sheet.copy()
+
+# Traitement et enrichissement des données pour les graphiques
 if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
     df = df_raw.copy()
-    
-    # Gestion de la date au format français
-    df["date_parsed"] = pd.to_datetime(df["date"], errors='coerce')
+    df["date_parsed"] = pd.to_datetime(df["date"], format="%d/%m/%Y", errors='coerce')
+    # Si le format fr n'a pas marché, tenter le format générique
+    df["date_parsed"] = df["date_parsed"].fillna(pd.to_datetime(df["date"], errors='coerce'))
     df = df.sort_values(by="date_parsed", ascending=True)
     
     jours_traduc = {
@@ -76,7 +96,6 @@ if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
     }
     df["Jour Semaine"] = df["date_parsed"].dt.day_name().map(jours_traduc)
     
-    # Calcul de la tranche horaire d'une heure (ex: 07:12 -> 07h - 08h)
     def calcul_tranche_1h(heure_str):
         try:
             h = int(str(heure_str).split(':')[0])
@@ -90,15 +109,11 @@ else:
 # --- BARRE LATÉRALE : INSERTION DE POSITION ---
 st.sidebar.header("📥 Ajout de Positions")
 
-# Sortie de la checkbox du formulaire pour éviter les bugs de rafraîchissement
 saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie Rapide (Session Live)", value=True)
 
 with st.sidebar.form(key="trade_form", clear_on_submit=True):
     trade_date = st.date_input("Date du trade", datetime.now(), format="DD/MM/YYYY")
-    
-    # Ajout du paramètre step=60 pour permettre de modifier précisément l'heure et les minutes
     trade_time = st.time_input("Heure d'entrée exacte", time(7, 0), step=60)
-    
     zone_choisie = st.selectbox("Zone d'intervention", ["VA", "zone rouge", "VA H/L", "exploration", "jonction VA - VA H/L", "jonction VA H/L - exploration", "jonction VA - zone rouge"])
     uploaded_file = st.file_uploader("📷 Capture d'écran (Graphique)", type=["png", "jpg", "jpeg"])
 
@@ -123,7 +138,6 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
 
     submit_button = st.form_submit_button(label="Enregistrer le Trade")
 
-# Logique de sauvegarde
 if submit_button:
     url_photo = "Pas de photo"
     if uploaded_file is not None:
@@ -138,7 +152,10 @@ if submit_button:
         "RR": float(rr_value), "zone": zone_choisie, "type divergence": div_type, "nb bougie divergence": int(nb_candles),
         "première bougie de l'arc": first_candle, "derniere bougie de l'arc": last_candle, "photo": url_photo, "commentaire": comments
     }])
+    
+    st.session_state["local_trades"] = pd.concat([st.session_state["local_trades"], new_trade], ignore_index=True)
     st.sidebar.success(f"Trade enregistré localement ! ({date_fr} à {heure_fr})")
+    st.rerun()
 
 # --- ESPACE DE TRAVAIL CENTRAL ---
 tab_dashboard, tab_correction = st.tabs(["📊 Statistiques & Graphiques", "✏️ Mode Édition (Données manquantes)"])
@@ -154,18 +171,22 @@ with tab_dashboard:
         c1, c2, c3, c4 = st.columns(4)
         
         total_valid = len(df_clean)
+        tp_t = len(df_clean[df_clean["résultat"] == "TP"])
+        sl_t = len(df_clean[df_clean["résultat"] == "SL"])
+        wr = (tp_t / (tp_t + sl_t) * 100) if (tp_t + sl_t) > 0 else 0.0
+        
         if total_valid > 0:
-            tp_t = len(df_clean[df_clean["résultat"] == "TP"])
-            sl_t = len(df_clean[df_clean["résultat"] == "SL"])
-            wr = (tp_t / (tp_t + sl_t) * 100) if (tp_t + sl_t) > 0 else 0.0
             df_clean["RR"] = pd.to_numeric(df_clean["RR"], errors='coerce').fillna(0)
             r_total = df_clean["RR"].sum()
+        else:
+            r_total = 0.0
             
-            c1.metric("Positions Analysées", f"{total_valid} trades")
-            c2.metric("Taux de Réussite (Win Rate)", f"{wr:.1f}%", f"{tp_t} TP / {sl_t} SL")
-            c3.metric("RR Cumulé Total", f"+{r_total:.1f} R" if r_total >= 0 else f"{r_total:.1f} R")
-            c4.metric("En attente de complétion", f"{len(df) - total_valid} trades")
-            
+        c1.metric("Positions Analysées", f"{total_valid} trades")
+        c2.metric("Taux de Réussite (Win Rate)", f"{wr:.1f}%", f"{tp_t} TP / {sl_t} SL")
+        c3.metric("RR Cumulé Total", f"+{r_total:.1f} R" if r_total >= 0 else f"{r_total:.1f} R")
+        c4.metric("En attente de complétion", f"{len(df) - total_valid} trades")
+        
+        if total_valid > 0:
             st.markdown("---")
             st.markdown("### 📈 Progression Globale des Résultats (RR)")
             df_clean["RR_Cumsum"] = df_clean["RR"].cumsum()
@@ -232,7 +253,7 @@ with tab_dashboard:
                 fig_pie = px.pie(df_sig, values='Total', names='type divergence', hole=0.4)
                 st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.info("💡 Vos données sont connectées ! Ajoutez maintenant vos caractéristiques de trades dans l'onglet 'Mode Édition' pour voir apparaître vos statistiques.")
+            st.info("💡 Vos données sont connectées ! Remplissez les caractéristiques manquantes de votre position ci-dessus dans l'onglet 'Mode Édition' pour voir vos graphiques.")
             
         st.markdown("### 📋 Historique Général Brut")
         df_display = df.copy()
@@ -243,7 +264,7 @@ with tab_dashboard:
         st.warning("⚠️ Base de données vide. Remplissez un premier trade dans la barre latérale pour démarrer l'application.")
 
 # ----------------------------------------------------------------------------------
-# ONGLET 2 : LE CENTRE DE CORRECTION
+# ONGLET 2 : LE CENTRE DE CORRECTION (SYNCHRONISÉ)
 # ----------------------------------------------------------------------------------
 with tab_correction:
     st.subheader("✏️ Analyse et enrichissement à tête reposée")
@@ -285,4 +306,32 @@ with tab_correction:
                 u_rr = st.number_input("RR (à indiquer)", min_value=-1.0, value=0.0, step=0.1)
                 
             u_comments = st.text_area("Commentaire", value="")
-            st.form_submit_button("Valider et injecter les datas")
+            save_button = st.form_submit_button("Valider et injecter les datas")
+            
+        if save_button:
+            # Injection des données modifiées dans la ligne correspondante
+            df_raw.at[index_reel, "ordre"] = u_dir
+            df_raw.at[index_reel, "résultat"] = u_res
+            df_raw.at[index_reel, "type divergence"] = u_sig
+            df_raw.at[index_reel, "nb bougie divergence"] = int(u_div)
+            df_raw.at[index_reel, "première bougie de l'arc"] = u_first
+            df_raw.at[index_reel, "derniere bougie de l'arc"] = u_last
+            df_raw.at[index_reel, "RR"] = float(u_rr)
+            df_raw.at[index_reel, "commentaire"] = u_comments
+            
+            # Réactualisation de la mémoire de session locale
+            # On sépare ce qui provient du Google Sheet initial de ce qui a été créé dans cette session
+            nb_sheet_rows = len(df_sheet)
+            if index_reel >= nb_sheet_rows:
+                local_idx = index_reel - nb_sheet_rows
+                st.session_state["local_trades"].at[local_idx, "ordre"] = u_dir
+                st.session_state["local_trades"].at[local_idx, "résultat"] = u_res
+                st.session_state["local_trades"].at[local_idx, "type divergence"] = u_sig
+                st.session_state["local_trades"].at[local_idx, "nb bougie divergence"] = int(u_div)
+                st.session_state["local_trades"].at[local_idx, "première bougie de l'arc"] = u_first
+                st.session_state["local_trades"].at[local_idx, "derniere bougie de l'arc"] = u_last
+                st.session_state["local_trades"].at[local_idx, "RR"] = float(u_rr)
+                st.session_state["local_trades"].at[local_idx, "commentaire"] = u_comments
+            
+            st.success("🔥 Position complétée et sauvegardée avec succès dans l'analyseur !")
+            st.rerun()
