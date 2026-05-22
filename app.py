@@ -53,8 +53,10 @@ def upload_image_to_imgbb(image_file, api_key):
 
 def sauvegarder_dans_google_sheet(payload_data, script_url):
     if script_url:
-        try: requests.post(script_url, json=payload_data)
-        except: pass
+        try: 
+            requests.post(script_url, json=payload_data)
+        except: 
+            pass
 
 if "local_trades" not in st.session_state:
     st.session_state["local_trades"] = pd.DataFrame(columns=[
@@ -101,4 +103,8 @@ if not df_raw.empty and "date" in df_raw.columns and len(df_raw) > 0:
             return "Inconnu"
     df["Tranche Horaire"] = df["heure"].apply(calcul_tranche_1h)
 else:
-    df =
+    df = pd.DataFrame()
+
+# --- BARRE LATÉRALE : INSERTION DE POSITION ---
+st.sidebar.header("📥 Ajout de Positions")
+saisie_rapide = st.sidebar.checkbox("🚀 Mode Saisie
