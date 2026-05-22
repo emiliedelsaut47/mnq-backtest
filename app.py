@@ -6,58 +6,76 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, time
 
-# --- CONFIGURATION GRAPHIQUE DE LA PAGE ---
+# --- CONFIGURATION GRAPHIQUE ---
 st.set_page_config(page_title="MNQ Professional Analytics", layout="wide", initial_sidebar_state="expanded")
 
-# CSS personnalisé pour le style Dark Mode Premium
 st.markdown("""
     <style>
         body { color: #ECEFF4; }
         [data-testid="stMetricValue"] { font-size: 28px; font-weight: 700; color: #00E676; }
-        [data-testid="stMetricDelta"] { font-size: 16px; }
         .stTabs [data-baseweb="tab"] { font-size: 14px; font-weight: 600; padding: 10px 20px; }
         div.stButton > button:first-child { background-color: #00E676; color: #000000; font-weight: bold; border: none; }
-        div.stButton > button:first-child:hover { background-color: #00B248; color: #ffffff; }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("🎛️ Tableau de Bord & Statistiques Avancées — MNQ")
 
-# -------------------------------------------------------------
-# 💾 PARAMÈTRES INTÉGRÉS :
+# 💾 CONFIGURATION
 URL_SHEET = "https://docs.google.com/spreadsheets/d/1MNBfIn1HJFvpdEJbqm-QS8kn1AojNQACt5aIvsI2O_o/edit?usp=sharing"
 IMGBB_API_KEY = "9c5db4365278c7dc8bd57965b8e7d545"
 URL_SCRIPT_WEB = "https://script.google.com/macros/s/AKfycbwUlsQYnhkdPJRkSCx6_tcGX6N4oLV1Y_NA2KG96YdiyP-KtP4_89sdmR91Vv_cvLir/exec"
-# -------------------------------------------------------------
 
-if "docs.google.com" in URL_SHEET:
-    base_url = URL_SHEET.split("/edit")[0]
-    csv_url = f"{base_url}/export?format=csv&gid=0"
-else:
-    st.error("Veuillez entrer une URL Google Sheets valide.")
-    st.stop()
-
-def upload_image_to_imgbb(image_file, api_key):
+def load_data(url):
     try:
-        img_bytes = image_file.read()
-        img_b64 = base64.b64encode(img_bytes)
-        url = "https://api.imgbb.com/1/upload"
-        payload = {"key": api_key, "image": img_b64}
-        res = requests.post(url, data=payload)
-        res_json = res.json()
-        if res_json.get("status") == 200: 
-            return res_json["data"]["url"]
-        return "Erreur upload"
-    except: 
-        return "Erreur connexion"
+        base_url = url.split("/edit")[0]
+        csv_url = f"{base_url}/export?format=csv&gid=0"
+        return pd.read_csv(csv_url).dropna(how='all')
+    except:
+        return pd.DataFrame()
 
-def sauvegarder_dans_google_sheet(payload_data, script_url):
-    if script_url:
-        try: 
-            requests.post(script_url, json=payload_data)
-        except: 
-            pass
+df = load_data(URL_SHEET)
 
-# Structure standardisée des colonnes (Avec "arc")
-COLONNES_STANDARDS = [
-    "date", "heure", "ordre", "résultat", "RR", "zone",
+# --- SIDEBAR ---
+st.sidebar.header("📥 Ajout de Positions")
+with st.sidebar.form(key="trade_form", clear_on_submit=True):
+    trade_date = st.date_input("Date", datetime.now())
+    trade_time = st.time_input("Heure", time(7, 0))
+    zone = st.selectbox("Zone", ["VA", "zone rouge", "VA H/L", "exploration"])
+    ordre = st.radio("Ordre", ["achat", "vente"], horizontal=True)
+    result = st.radio("Résultat", ["TP", "SL", "BE"], horizontal=True)
+    rr = st.number_input("RR", value=0.0)
+    div_type = st.radio("Divergence", ["absorption", "exhaustion"], horizontal=True)
+    nb_bougies = st.number_input("Nb bougies", value=3)
+    first_c = st.selectbox("1ère bougie", ["petite mèche", "grosse mèche", "pin bar", "corps", "double mèche"])
+    last_c = st.selectbox("Dernière bougie", ["petite mèche", "grosse mèche", "pin bar", "corps", "double mèche"])
+    arc = st.selectbox("Arc", ["bel arc", "arc écrasé"])
+    submit = st.form_submit_button("Enregistrer le Trade")
+
+if submit:
+    payload = {
+        "date": trade_date.strftime("%d/%m/%Y"), "heure": trade_time.strftime("%H:%M"),
+        "ordre": ordre, "résultat": result, "RR": float(rr), "zone": zone,
+        "type_divergence": div_type, "nb_bougie_divergence": int(nb_bougies),
+        "premiere_bougie": first_c, "derniere_bougie": last_c, "arc": arc
+    }
+    requests.post(URL_SCRIPT_WEB, json=payload)
+    st.sidebar.success("Enregistré !")
+    st.rerun()
+
+# --- DASHBOARD ---
+if not df.empty:
+    df["date"] = pd.to_datetime(df["date"], format="%d/%m/%Y")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    tp = len(df[df["résultat"] == "TP"])
+    sl = len(df[df["résultat"] == "SL"])
+    col1.metric("Total", len(df))
+    col2.metric("Winrate", f"{(tp/(tp+sl)*100 if (tp+sl)>0 else 0):.1f}%")
+    col3.metric("RR Total", f"{df['RR'].sum():.1f} R")
+    col4.metric("Trades", len(df))
+
+    st.subheader("📈 Répartition")
+    c1, c2 = st.columns(2)
+    with c1:
+        fig1 = px.pie(df, names='résultat', title="Résultats (TP/SL/BE)", hole=0.4)
+        st.plotly_chart(fig1, use_container_
