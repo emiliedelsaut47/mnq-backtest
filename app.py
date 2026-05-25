@@ -265,32 +265,73 @@ with tab_dashboard:
             stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
             return stats
 
-        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Structure des Bougies & Arc", "⏰ Heures & Jours", "🗺️ Zones d'Intervention"])
+        # Fonction générique pour créer les graphiques Donut demandés
+        def afficher_graphique_donut(dataframe, colonne, titre):
+            stats = analyser_critere(dataframe, colonne)
+            if stats.empty:
+                st.info(f"Aucune donnée pour : {titre}")
+                return
+            
+            # Palette de couleurs distinctive et esthétique pour les parts
+            fig = px.pie(
+                stats, 
+                values='Total', 
+                names=colonne, 
+                hole=0.43,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            
+            # Configuration du texte affiché directement sur/à côté des parts (Nom, WR, TP/BE/SL)
+            fig.update_traces(
+                textposition='auto',
+                texttemplate="<b>%{label}</b><br>WR: %{customdata[3]:.0f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}",
+                customdata=stats[['TP', 'BE', 'SL', 'Winrate']].values,
+                hovertemplate="<b>%{label}</b><br>Trades Totaux: %{value}<br>Winrate: %{customdata[3]:.1f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}<extra></extra>"
+            )
+            
+            fig.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=10, r=10, t=10, b=10),
+                font=dict(color='#ECEFF4'),
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Configuration des Structures", "⏰ Heures & Jours", "🗺️ Zones d'Intervention"])
         
         with sub_tab1:
-            col_b1, col_b2, col_b3 = st.columns(3)
+            col_b1, col_b2 = st.columns(2)
             with col_b1:
-                st.markdown("**Première bougie**")
-                st.dataframe(analyser_critere(df_clean, "première bougie de l'arc"), use_container_width=True, hide_index=True)
+                st.markdown("#### 1ère bougie de l'arc")
+                afficher_graphique_donut(df_clean, "première bougie de l'arc", "Première bougie")
             with col_b2:
-                st.markdown("**Dernière bougie**")
-                st.dataframe(analyser_critere(df_clean, "derniere bougie de l'arc"), use_container_width=True, hide_index=True)
+                st.markdown("#### Dernière bougie de l'arc")
+                afficher_graphique_donut(df_clean, "derniere bougie de l'arc", "Dernière bougie")
+                
+            st.markdown("---")
+            col_b3, col_b4 = st.columns(2)
             with col_b3:
-                st.markdown("**Type d'Arc**")
-                st.dataframe(analyser_critere(df_clean, "arc"), use_container_width=True, hide_index=True)
+                st.markdown("#### Type d'Arc")
+                afficher_graphique_donut(df_clean, "arc", "Arc")
+            with col_b4:
+                st.markdown("#### Type de Divergence")
+                afficher_graphique_donut(df_clean, "type divergence", "Divergence")
                 
         with sub_tab2:
             col_h1, col_h2 = st.columns(2)
             with col_h1:
-                st.markdown("**Performance par Tranche Horaire (1h)**")
-                st.dataframe(analyser_critere(df_clean, "Tranche Horaire").sort_values(by="Tranche Horaire"), use_container_width=True, hide_index=True)
+                st.markdown("#### Tranche Horaire (1h)")
+                afficher_graphique_donut(df_clean, "Tranche Horaire", "Tranche Horaire")
             with col_h2:
-                st.markdown("**Performance par Jour de la Semaine**")
-                st.dataframe(analyser_critere(df_clean, "Jour Semaine").sort_values(by="Jour Semaine"), use_container_width=True, hide_index=True)
+                st.markdown("#### Jour de la Semaine")
+                afficher_graphique_donut(df_clean, "Jour Semaine", "Jour Semaine")
                 
         with sub_tab3:
-            st.markdown("**Performance par Zone d'Intervention**")
-            st.dataframe(analyser_critere(df_clean, "zone").sort_values(by="Winrate", ascending=False), use_container_width=True, hide_index=True)
+            st.markdown("#### Zone d'Intervention")
+            afficher_graphique_donut(df_clean, "zone", "Zone")
+            
     else:
         st.info("💡 Base de données connectée. Vos analyses de performance s'afficheront ici dès qu'une position sera complétée.")
         
@@ -329,7 +370,6 @@ with tab_correction:
                 u_sig = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
                 u_div = st.number_input("Nb bougie divergence", min_value=1, step=1, value=3)
             with col_u3:
-                # Options mises à jour avec "double mèche" pour l'édition
                 options_bougies_u = ["petite mèche", "grosse mèche", "pin bar", "corps", "double mèche"]
                 u_first = st.selectbox("Première bougie de l'arc", options_bougies_u)
                 u_last = st.selectbox("Dernière bougie de l'arc", options_bougies_u)
