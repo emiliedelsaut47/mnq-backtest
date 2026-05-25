@@ -58,7 +58,7 @@ def sauvegarder_dans_google_sheet(payload_data, script_url):
         except: 
             pass
 
-# Structure standardisée des colonnes (Ajout de "arc")
+# Structure standardisée des colonnes
 COLONNES_STANDARDS = [
     "date", "heure", "ordre", "résultat", "RR", "zone", 
     "type divergence", "nb bougie divergence", "première bougie de l'arc", "derniere bougie de l'arc", "arc", "photo", "commentaire"
@@ -138,12 +138,9 @@ with st.sidebar.form(key="trade_form", clear_on_submit=True):
         div_type = st.radio("Type divergence", ["absorption", "exhaustion"], horizontal=True)
         nb_candles = st.number_input("Nb bougie divergence", min_value=1, value=3)
         
-        # Options mises à jour avec "double mèche"
         options_bougies = ["petite mèche", "grosse mèche", "pin bar", "corps", "double mèche"]
         first_candle = st.selectbox("Première bougie de l'arc", options_bougies)
         last_candle = st.selectbox("Dernière bougie de l'arc", options_bougies)
-        
-        # Paramètre Arc
         type_arc = st.selectbox("Arc", ["bel arc", "arc écrasé"])
         
         if result_type == "SL": 
@@ -265,26 +262,25 @@ with tab_dashboard:
             stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
             return stats
 
-        # Fonction générique pour créer les graphiques Donut demandés
+        # Fonction générique optimisée pour les Donut Charts sans texte superflu à l'intérieur
         def afficher_graphique_donut(dataframe, colonne, titre):
             stats = analyser_critere(dataframe, colonne)
             if stats.empty:
                 st.info(f"Aucune donnée pour : {titre}")
                 return
             
-            # Palette de couleurs distinctive et esthétique pour les parts
             fig = px.pie(
                 stats, 
                 values='Total', 
                 names=colonne, 
-                hole=0.43,
+                hole=0.45,
                 color_discrete_sequence=px.colors.qualitative.Pastel
             )
             
-            # Configuration du texte affiché directement sur/à côté des parts (Nom, WR, TP/BE/SL)
+            # Suppression du label textuel interne (%{label} retiré) pour une clarté optimale
             fig.update_traces(
                 textposition='auto',
-                texttemplate="<b>%{label}</b><br>WR: %{customdata[3]:.0f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}",
+                texttemplate="<b>WR: %{customdata[3]:.0f}%</b><br>TP:%{customdata[0]} | BE:%{customdata[1]} | SL:%{customdata[2]}",
                 customdata=stats[['TP', 'BE', 'SL', 'Winrate']].values,
                 hovertemplate="<b>%{label}</b><br>Trades Totaux: %{value}<br>Winrate: %{customdata[3]:.1f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}<extra></extra>"
             )
@@ -299,7 +295,7 @@ with tab_dashboard:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Configuration des Structures", "⏰ Heures & Jours", "🗺️ Zones d'Intervention"])
+        sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Structure des Bougies & Arc", "⏰ Heures & Jours", "🗺️ Zones d'Intervention"])
         
         with sub_tab1:
             col_b1, col_b2 = st.columns(2)
@@ -343,7 +339,7 @@ with tab_dashboard:
         st.dataframe(df_display.sort_values(by="date", ascending=False), use_container_width=True, hide_index=True)
 
 with tab_correction:
-    st.subheader("🖍️ Analyse et enrichissement à tête reposée")
+    st.subheader("🖍️ Analyse et enrichment à tête reposée")
     
     if not df.empty and "résultat" in df.columns: 
         df_incomplets = df[df["résultat"] == "À compléter"]
