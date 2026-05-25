@@ -18,10 +18,11 @@ st.markdown("""
         .stTabs [data-baseweb="tab"] { font-size: 14px; font-weight: 600; padding: 10px 20px; }
         div.stButton > button:first-child { background-color: #00E676; color: #000000; font-weight: bold; border: none; }
         div.stButton > button:first-child:hover { background-color: #00B248; color: #ffffff; }
+        .dataframe { font-size: 12px !important; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Tableau de Bord et Statistiques Avancées - MNQ")
+st.title("🛡️ Tableau de Bord et Statistiques Avancées - MNQ")
 
 # -------------------------------------------------------------
 # PARAMÈTRES INTÉGRÉS
@@ -241,8 +242,8 @@ with tab_dashboard:
             fillcolor='rgba(0, 230, 118, 0.1)'
         ))
         fig_curve.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300,
-            margin=dict(l=20, r=20, t=20, b=20), font=dict(color='#ECEFF4')
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=250,
+            margin=dict(l=20, r=20, t=10, b=20), font=dict(color='#ECEFF4')
         )
         st.plotly_chart(fig_curve, use_container_width=True)
         
@@ -255,54 +256,57 @@ with tab_dashboard:
             stats = dataframe.groupby(colonne).agg(
                 Total=('résultat', 'count'),
                 TP=('résultat', lambda x: (x == 'TP').sum()),
-                SL=('résultat', lambda x: (x == 'SL').sum()),
                 BE=('résultat', lambda x: (x == 'BE').sum()),
+                SL=('résultat', lambda x: (x == 'SL').sum()),
                 R_Gain=('RR', 'sum')
             ).reset_index()
-            
-            stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
+            stats['Winrate'] = stats.apply(lambda r: f"{(r['TP'] / (r['TP'] + r['SL']) * 100):.1f}%" if (r['TP'] + r['SL']) > 0 else "0.0%", axis=1)
             return stats
 
-        # Nouvelle fonction de rendu linéaire pour une lisibilité parfaite des gains/pertes
-        def afficher_graphique_barres(dataframe, colonne, titre):
+        # Rendu en barres verticales épurées et ultra-lisibles
+        def afficher_graphique_bloc(dataframe, colonne, titre):
             stats = analyser_critere(dataframe, colonne)
             if stats.empty:
                 st.info(f"Aucune donnée pour : {titre}")
                 return
             
-            # Tri intelligent : Les meilleurs setups se retrouvent en haut du graphique
-            stats = stats.sort_values(by='R_Gain', ascending=True)
+            # Tri décroissant pour mettre en avant les forces en premier
+            stats = stats.sort_values(by='R_Gain', ascending=False)
             
             fig = px.bar(
                 stats, 
-                x='R_Gain', 
-                y=colonne, 
-                orientation='h',
+                x=colonne, 
+                y='R_Gain', 
                 color='R_Gain',
-                # Échelle intelligente : Rouge vif pour les pertes, jaune à 0, vert fluo pour les gains
                 color_continuous_scale=[[0, '#FF5252'], [0.5, '#FFD740'], [1, '#00E676']],
                 color_continuous_midpoint=0
             )
             
-            # Affichage propre des métriques demandées à l'extérieur des barres
             fig.update_traces(
-                texttemplate="<b>%{customdata[4]:+.1f} R</b> (WR: %{customdata[3]:.0f}%) | %{customdata[0]}TP-%{customdata[1]}BE-%{customdata[2]}SL",
+                texttemplate="<b>%{y:+.1f} R</b>",
                 textposition='outside',
-                customdata=stats[['TP', 'BE', 'SL', 'Winrate', 'R_Gain']].values,
-                hovertemplate="<b>%{y}</b><br>RR Cumulé: %{customdata[4]:+.1f} R<br>Winrate: %{customdata[3]:.1f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}<extra></extra>"
+                hovertemplate="<b>%{x}</b><br>RR Cumulé: %{y:+.1f} R<extra></extra>"
             )
             
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=10, r=15, t=10, b=10),
+                margin=dict(l=10, r=10, t=25, b=10),
                 font=dict(color='#ECEFF4'),
-                xaxis=dict(title="RR Cumulé (Gains / Pertes)", showgrid=True, gridcolor='rgba(232,232,232,0.1)'),
-                yaxis=dict(title=""),
+                xaxis=dict(title="", tickangle=0),
+                yaxis=dict(title="RR Cumulé", showgrid=True, gridcolor='rgba(232,232,232,0.05)'),
                 coloraxis_showscale=False,
-                height=180 + (len(stats) * 35) # S'adapte à la quantité de lignes pour rester aéré
+                height=260
             )
             st.plotly_chart(fig, use_container_width=True)
+            
+            # Tableau récapitulatif synchronisé juste en dessous pour le détail des métriques
+            df_affiche = stats.rename(columns={colonne: "Configuration", "R_Gain": "RR Cumulé", "Total": "Trades"})
+            st.dataframe(
+                df_affiche[["Configuration", "RR Cumulé", "Winrate", "Trades", "TP", "BE", "SL"]],
+                use_container_width=True,
+                hide_index=True
+            )
 
         sub_tab1, sub_tab2, sub_tab3 = st.tabs(["📊 Structure des Bougies & Arc", "⏰ Heures & Jours", "🗺️ Zones d'Intervention"])
         
@@ -310,32 +314,32 @@ with tab_dashboard:
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 st.markdown("#### 1ère bougie de l'arc")
-                afficher_graphique_barres(df_clean, "première bougie de l'arc", "Première bougie")
+                afficher_graphique_bloc(df_clean, "première bougie de l'arc", "Première bougie")
             with col_b2:
                 st.markdown("#### Dernière bougie de l'arc")
-                afficher_graphique_barres(df_clean, "derniere bougie de l'arc", "Dernière bougie")
+                afficher_graphique_bloc(df_clean, "derniere bougie de l'arc", "Dernière bougie")
                 
             st.markdown("---")
             col_b3, col_b4 = st.columns(2)
             with col_b3:
                 st.markdown("#### Type d'Arc")
-                afficher_graphique_barres(df_clean, "arc", "Arc")
+                afficher_graphique_bloc(df_clean, "arc", "Arc")
             with col_b4:
                 st.markdown("#### Type de Divergence")
-                afficher_graphique_barres(df_clean, "type divergence", "Divergence")
+                afficher_graphique_bloc(df_clean, "type divergence", "Divergence")
                 
         with sub_tab2:
             col_h1, col_h2 = st.columns(2)
             with col_h1:
                 st.markdown("#### Tranche Horaire (1h)")
-                afficher_graphique_barres(df_clean, "Tranche Horaire", "Tranche Horaire")
+                afficher_graphique_bloc(df_clean, "Tranche Horaire", "Tranche Horaire")
             with col_h2:
                 st.markdown("#### Jour de la Semaine")
-                afficher_graphique_barres(df_clean, "Jour Semaine", "Jour Semaine")
+                afficher_graphique_bloc(df_clean, "Jour Semaine", "Jour Semaine")
                 
         with sub_tab3:
             st.markdown("#### Zone d'Intervention")
-            afficher_graphique_barres(df_clean, "zone", "Zone")
+            afficher_graphique_bloc(df_clean, "zone", "Zone")
             
     else:
         st.info("💡 Base de données connectée. Vos analyses de performance s'afficheront ici dès qu'une position sera complétée.")
