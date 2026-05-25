@@ -247,7 +247,7 @@ with tab_dashboard:
         st.plotly_chart(fig_curve, use_container_width=True)
         
         st.markdown("---")
-        st.markdown("### 🎯 Analyses Précises par Paramètres")
+        st.markdown("### 🎯 Classement des Performances par Paramètre")
         
         def analyser_critere(dataframe, colonne):
             if dataframe.empty or colonne not in dataframe.columns:
@@ -259,39 +259,48 @@ with tab_dashboard:
                 BE=('résultat', lambda x: (x == 'BE').sum()),
                 R_Gain=('RR', 'sum')
             ).reset_index()
+            
             stats['Winrate'] = stats.apply(lambda r: (r['TP'] / (r['TP'] + r['SL']) * 100) if (r['TP'] + r['SL']) > 0 else 0.0, axis=1)
             return stats
 
-        # Fonction générique optimisée pour les Donut Charts sans texte superflu à l'intérieur
-        def afficher_graphique_donut(dataframe, colonne, titre):
+        # Nouvelle fonction de rendu linéaire pour une lisibilité parfaite des gains/pertes
+        def afficher_graphique_barres(dataframe, colonne, titre):
             stats = analyser_critere(dataframe, colonne)
             if stats.empty:
                 st.info(f"Aucune donnée pour : {titre}")
                 return
             
-            fig = px.pie(
+            # Tri intelligent : Les meilleurs setups se retrouvent en haut du graphique
+            stats = stats.sort_values(by='R_Gain', ascending=True)
+            
+            fig = px.bar(
                 stats, 
-                values='Total', 
-                names=colonne, 
-                hole=0.45,
-                color_discrete_sequence=px.colors.qualitative.Pastel
+                x='R_Gain', 
+                y=colonne, 
+                orientation='h',
+                color='R_Gain',
+                # Échelle intelligente : Rouge vif pour les pertes, jaune à 0, vert fluo pour les gains
+                color_continuous_scale=[[0, '#FF5252'], [0.5, '#FFD740'], [1, '#00E676']],
+                color_continuous_midpoint=0
             )
             
-            # Suppression du label textuel interne (%{label} retiré) pour une clarté optimale
+            # Affichage propre des métriques demandées à l'extérieur des barres
             fig.update_traces(
-                textposition='auto',
-                texttemplate="<b>WR: %{customdata[3]:.0f}%</b><br>TP:%{customdata[0]} | BE:%{customdata[1]} | SL:%{customdata[2]}",
-                customdata=stats[['TP', 'BE', 'SL', 'Winrate']].values,
-                hovertemplate="<b>%{label}</b><br>Trades Totaux: %{value}<br>Winrate: %{customdata[3]:.1f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}<extra></extra>"
+                texttemplate="<b>%{customdata[4]:+.1f} R</b> (WR: %{customdata[3]:.0f}%) | %{customdata[0]}TP-%{customdata[1]}BE-%{customdata[2]}SL",
+                textposition='outside',
+                customdata=stats[['TP', 'BE', 'SL', 'Winrate', 'R_Gain']].values,
+                hovertemplate="<b>%{y}</b><br>RR Cumulé: %{customdata[4]:+.1f} R<br>Winrate: %{customdata[3]:.1f}%<br>TP: %{customdata[0]} | BE: %{customdata[1]} | SL: %{customdata[2]}<extra></extra>"
             )
             
             fig.update_layout(
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(l=10, r=10, t=10, b=10),
+                margin=dict(l=10, r=15, t=10, b=10),
                 font=dict(color='#ECEFF4'),
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5)
+                xaxis=dict(title="RR Cumulé (Gains / Pertes)", showgrid=True, gridcolor='rgba(232,232,232,0.1)'),
+                yaxis=dict(title=""),
+                coloraxis_showscale=False,
+                height=180 + (len(stats) * 35) # S'adapte à la quantité de lignes pour rester aéré
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -301,32 +310,32 @@ with tab_dashboard:
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 st.markdown("#### 1ère bougie de l'arc")
-                afficher_graphique_donut(df_clean, "première bougie de l'arc", "Première bougie")
+                afficher_graphique_barres(df_clean, "première bougie de l'arc", "Première bougie")
             with col_b2:
                 st.markdown("#### Dernière bougie de l'arc")
-                afficher_graphique_donut(df_clean, "derniere bougie de l'arc", "Dernière bougie")
+                afficher_graphique_barres(df_clean, "derniere bougie de l'arc", "Dernière bougie")
                 
             st.markdown("---")
             col_b3, col_b4 = st.columns(2)
             with col_b3:
                 st.markdown("#### Type d'Arc")
-                afficher_graphique_donut(df_clean, "arc", "Arc")
+                afficher_graphique_barres(df_clean, "arc", "Arc")
             with col_b4:
                 st.markdown("#### Type de Divergence")
-                afficher_graphique_donut(df_clean, "type divergence", "Divergence")
+                afficher_graphique_barres(df_clean, "type divergence", "Divergence")
                 
         with sub_tab2:
             col_h1, col_h2 = st.columns(2)
             with col_h1:
                 st.markdown("#### Tranche Horaire (1h)")
-                afficher_graphique_donut(df_clean, "Tranche Horaire", "Tranche Horaire")
+                afficher_graphique_barres(df_clean, "Tranche Horaire", "Tranche Horaire")
             with col_h2:
                 st.markdown("#### Jour de la Semaine")
-                afficher_graphique_donut(df_clean, "Jour Semaine", "Jour Semaine")
+                afficher_graphique_barres(df_clean, "Jour Semaine", "Jour Semaine")
                 
         with sub_tab3:
             st.markdown("#### Zone d'Intervention")
-            afficher_graphique_donut(df_clean, "zone", "Zone")
+            afficher_graphique_barres(df_clean, "zone", "Zone")
             
     else:
         st.info("💡 Base de données connectée. Vos analyses de performance s'afficheront ici dès qu'une position sera complétée.")
@@ -339,7 +348,7 @@ with tab_dashboard:
         st.dataframe(df_display.sort_values(by="date", ascending=False), use_container_width=True, hide_index=True)
 
 with tab_correction:
-    st.subheader("🖍️ Analyse et enrichment à tête reposée")
+    st.subheader("🖍️ Analyse et enrichissement à tête reposée")
     
     if not df.empty and "résultat" in df.columns: 
         df_incomplets = df[df["résultat"] == "À compléter"]
